@@ -19,9 +19,11 @@ import (
 	"bytes"
 	"encoding/csv"
 	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"net/http"
 	"strings"
+	"log"
 
 	"github.com/gohugoio/hugo/common/constants"
 	"github.com/gohugoio/hugo/common/loggers"
@@ -39,6 +41,7 @@ func New(deps *deps.Deps) *Namespace {
 		deps:         deps,
 		cacheGetCSV:  deps.FileCaches.GetCSVCache(),
 		cacheGetJSON: deps.FileCaches.GetJSONCache(),
+		cacheGetXML:  deps.FileCaches.GetXMLCache(),
 		client:       http.DefaultClient,
 	}
 }
@@ -49,6 +52,7 @@ type Namespace struct {
 
 	cacheGetJSON *filecache.Cache
 	cacheGetCSV  *filecache.Cache
+	cacheGetXML  *filecache.Cache
 
 	client *http.Client
 }
@@ -143,3 +147,57 @@ func parseCSV(c []byte, sep string) ([][]string, error) {
 	r.FieldsPerRecord = 0
 	return r.ReadAll()
 }
+
+
+func (ns *Namespace) GetXML(urlParts ...interface{}) (d [][]string, err error) {
+	log.Println("GetXML.start")
+	var v interface{}
+	url := joinURL(urlParts)
+	cache := ns.cacheGetJSON
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, _errors.Wrapf(err, "Failed to create request for getXML resource %s", url)
+	}
+
+	unmarshal := func(b []byte) (bool, error) {
+		err := xml.Unmarshal(b, &v)
+		if err != nil {
+			return true, err
+		}
+		return false, nil
+	}
+
+	req.Header.Add("Accept", "application/xml")
+	req.Header.Add("User-Agent", "Hugo Static Site Generator")
+
+	err = ns.getResource(cache, unmarshal, req)
+	if err != nil {
+		ns.deps.Log.(loggers.IgnorableLogger).Errorsf(constants.ErrRemoteGetXML, "Failed to get XML resource %q: %s", url, err)
+
+		return nil, nil
+	}
+
+	return v, nil
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
